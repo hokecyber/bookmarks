@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Resortify Solutions</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #ffffff; --ink: #111111; --mute: #6b6b6b; --line: #dcdcdc; --hover: #111111; --hover-ink: #ffffff;
+    --font: "Bricolage Grotesque", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --rh: clamp(100px, 15vh, 150px);                 /* height of one rail row */
+    --edge: max(48px, calc((100vw - 1240px) / 2));   /* rail starts aligned with the page column */
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #151515; --ink: #f2f2f2; --mute: #8d8d8d; --line: #333333; --hover: #f2f2f2; --hover-ink: #111111; }
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { background: var(--bg); color: var(--ink); font-family: var(--font); }
+  body { min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; justify-content: center; overflow-x: hidden; padding-block: 24px; }
+
+  /* Centre of the page */
+  header { width: min(640px, calc(100% - 32px)); margin: 0 auto 44px; text-align: center; }
+  .clock { font-size: clamp(56px, 11vh, 104px); font-weight: 800; letter-spacing: -0.045em; line-height: 1; }
+  .hello { color: var(--mute); margin: 8px 0 24px; font-size: 17px; }
+  .search {
+    width: 100%; height: 52px; padding: 0 26px;
+    border: 1.5px solid var(--line); border-radius: 26px;
+    background: transparent; color: var(--ink); font: 500 17px var(--font); outline: none;
+  }
+  .search::placeholder { color: var(--mute); }
+  .search:focus { border-color: var(--ink); }
+
+  /* Two-row masonry that scrolls sideways */
+  .rail {
+    display: grid; grid-template-rows: repeat(2, var(--rh));
+    grid-auto-columns: calc(var(--rh) * 1.6); grid-auto-flow: column dense; gap: 12px;
+    overflow-x: auto; overflow-y: hidden; padding-inline: var(--edge);
+    scrollbar-width: none; cursor: grab; overscroll-behavior-x: contain;
+  }
+  .rail::-webkit-scrollbar { display: none; }
+  .rail.drag { cursor: grabbing; }
+  .rail.drag .tile { pointer-events: none; }
+  /* spacer so the last tile can scroll fully clear of the edge */
+  .rail::after { content: ""; grid-row: 1; width: calc(var(--edge) - 12px); }
+
+  .tile {
+    position: relative; display: flex; flex-direction: column; justify-content: flex-end;
+    padding: 16px 18px; overflow: hidden; container-type: inline-size; min-width: 0;
+    background: var(--c); border-radius: 4px; color: var(--t); text-decoration: none; user-select: none; -webkit-user-drag: none;
+    transition: background-color .12s, color .12s;
+  }
+  .tile:hover, .tile:focus-visible { background: var(--hover); color: var(--hover-ink); outline: none; }
+  .tile:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+  .tile.w { grid-column: span 2; }
+  .tile.t { grid-row: span 2; }
+  .tile.b { grid-column: span 2; grid-row: span 2; }
+  .tile.h { grid-column: span 3; grid-row: span 2; }
+  .tile[hidden] { display: none; }
+  .tile .name { font-weight: 800; letter-spacing: -0.03em; line-height: .95; font-size: clamp(18px, 15cqw, 26px); overflow-wrap: anywhere; }
+  .tile .host { font-size: clamp(8px, 5.6cqw, 12px); font-weight: 500; opacity: .7; margin-top: 6px; overflow-wrap: anywhere; }
+  .tile .key { position: absolute; top: 12px; right: 14px; font-size: 12px; font-weight: 800; opacity: .55; }
+  .tile.w .name { font-size: clamp(22px, 11cqw, 36px); }
+  .tile.b .name { font-size: clamp(30px, 17cqw, 58px); }
+  .tile.h .name { font-size: clamp(40px, 20cqw, 88px); }
+  .tile.t .name { writing-mode: vertical-rl; transform: rotate(180deg); align-self: flex-start;
+                  font-size: clamp(26px, 24cqw, 42px); line-height: 1; margin-bottom: auto; }
+  .tile.t .host, .tile.b .host, .tile.h .host { font-size: clamp(8px, 5.6cqw, 13px); }
+
+  /* Scroll position + arrows */
+  .nav {
+    display: flex; align-items: center; gap: 16px;
+    width: min(1240px, calc(100% - 2 * var(--edge) + 0px)); margin: 22px auto 0;
+  }
+  .track { flex: 1; height: 3px; background: var(--line); position: relative; }
+  .thumb { position: absolute; top: 0; bottom: 0; left: 0; width: 30%; background: var(--ink); }
+  .nav button {
+    width: 34px; height: 34px; border-radius: 50%; border: 1.5px solid var(--line);
+    background: transparent; color: var(--ink); font: 800 16px var(--font); cursor: pointer;
+  }
+  .nav button:hover, .nav button:focus-visible { border-color: var(--ink); outline: none; }
+
+  .sig {                       /* fixed left gutter: tiles scroll behind it, never under the text */
+    position: fixed; left: 0; top: 0; bottom: 0; width: 44px; z-index: 5; background: var(--bg);
+    display: flex; align-items: center; justify-content: center;
+    writing-mode: vertical-rl; transform: rotate(180deg);
+    font-size: 11px; font-weight: 500; letter-spacing: .04em; color: var(--mute); white-space: nowrap;
+  }
+  .sig b { margin-inline-end: 14px; color: var(--ink); font-weight: 800; }
+  .sig a { color: inherit; text-decoration: none; }
+  .sig a:hover, .sig a:focus-visible { color: var(--ink); outline: none; text-decoration: underline; }
+
+  @media (max-width: 700px) {
+    :root { --edge: 16px; --rh: 112px; }
+    body { justify-content: flex-start; padding-block: 28px 64px; }
+    .sig { writing-mode: horizontal-tb; transform: none; left: 0; right: 0; top: auto; bottom: 0; width: auto; align-items: center;
+           padding: 8px 16px; background: var(--bg); border-top: 1px solid var(--line);
+           display: flex; justify-content: space-between; }
+    .sig b { margin: 0; }
+    .nav { width: calc(100% - 32px); }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="clock" id="clock"></div>
+  <p class="hello" id="hello"></p>
+  <input class="search" id="q" type="text" autocomplete="off" spellcheck="false"
+         placeholder="Filter your apps, or search Google" aria-label="Filter apps or search Google">
+</header>
+
+<div class="rail" id="rail" aria-label="Apps"></div>
+
+<div class="nav">
+  <button id="prev" aria-label="Scroll left">&lsaquo;</button>
+  <div class="track"><div class="thumb" id="thumb"></div></div>
+  <button id="next" aria-label="Scroll right">&rsaquo;</button>
+</div>
+
+<div class="sig">
+  <b>Resortify Solutions</b>
+  <a href="mailto:contacts@resortifysolutions.com">contacts@resortifysolutions.com</a>
+</div>
+
+<script>
+  // ── Edit this list: [host, size]. size: "" 1x1 | "w" 2x1 | "t" 1x2 | "b" 2x2 | "h" 3x2 ──
+  // Order = number-key order (first 9 get 1–9). Colour follows the domain:
+  // warm = resortifysolutions, cool = kidaliautomates.
+  const APPS = [
+    ["social.resortifysolutions.com", "b"],
+    ["tours.resortifysolutions.com", "w"],
+    ["av.resortifysolutions.com", "w"],
+    ["verify.resortifysolutions.com", "t"],
+    ["wiki.kidaliautomates.com", ""],
+    ["ui.kidaliautomates.com", ""],
+    ["code.kidaliautomates.com", "w"],
+    ["media.kidaliautomates.com", "w"],
+    ["cpanel.kidaliautomates.com", "t"],
+    ["av-auth.resortifysolutions.com", ""],
+    ["npm.resortifysolutions.com", ""],
+    ["data.kidaliautomates.com", ""],
+    ["storage.kidaliautomates.com", ""],
+    ["v.kidaliautomates.com", ""],
+    ["wg.kidaliautomates.com", ""],
+    ["resortifysolutions.com", ""],
+    ["kidaliautomates.com", ""],
+  ];
+
+  const PALETTE = {
+    "resortifysolutions.com": [["#FF5A36","#111"],["#FFC800","#111"],["#FF9EC0","#111"],["#FFB36B","#111"],["#FFD9A0","#111"]],
+    "kidaliautomates.com":    [["#2F5BFF","#fff"],["#00B26B","#111"],["#8FE3C0","#111"],["#B9A6FF","#111"],["#7CC4FF","#111"],["#0E6B5C","#fff"]],
+  };
+  const used = {};
+  const rail = document.getElementById("rail");
+  const q = document.getElementById("q");
+
+  APPS.forEach(([host, size], i) => {
+    const root = Object.keys(PALETTE).find(r => host === r || host.endsWith("." + r));
+    const pal = PALETTE[root];
+    const [bg, fg] = pal[(used[root] = (used[root] ?? -1) + 1) % pal.length];
+    const name = host === root ? root.split(".")[0].replace(/(solutions|automates)$/, "") : host.split(".")[0];
+    const el = document.createElement("a");
+    el.className = "tile " + size;
+    el.href = "https://" + host; el.title = host; el.draggable = false;
+    el.style.setProperty("--c", bg); el.style.setProperty("--t", fg);
+    el.dataset.search = host.toLowerCase();
+    el.innerHTML = (i < 9 ? `<span class="key">${i + 1}</span>` : "") +
+      `<span class="name">${name}</span><span class="host">${host}</span>`;
+    rail.appendChild(el);
+  });
+  const tiles = [...rail.querySelectorAll(".tile")];
+
+  // Clock + greeting
+  function tick() {
+    const d = new Date(), h = d.getHours();
+    document.getElementById("clock").textContent =
+      d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+    document.getElementById("hello").textContent =
+      (h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening") + " · " +
+      d.toLocaleDateString([], { weekday: "long", day: "numeric", month: "long" });
+  }
+  tick(); setInterval(tick, 10000);
+
+  // Scrolling: wheel, drag, arrows, progress
+  const thumb = document.getElementById("thumb");
+  function progress() {
+    const max = rail.scrollWidth - rail.clientWidth;
+    const w = Math.min(1, rail.clientWidth / rail.scrollWidth);
+    thumb.style.width = (w * 100) + "%";
+    thumb.style.left = (max > 0 ? (rail.scrollLeft / max) * (1 - w) * 100 : 0) + "%";
+  }
+  rail.addEventListener("scroll", progress, { passive: true });
+  addEventListener("resize", progress);
+  rail.addEventListener("wheel", e => {
+    if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) { e.preventDefault(); rail.scrollLeft += e.deltaY; }
+  }, { passive: false });
+  const step = () => rail.clientWidth * 0.8;
+  document.getElementById("prev").onclick = () => rail.scrollBy({ left: -step(), behavior: "smooth" });
+  document.getElementById("next").onclick = () => rail.scrollBy({ left:  step(), behavior: "smooth" });
+
+  let down = null, moved = false;
+  rail.addEventListener("pointerdown", e => { if (e.pointerType === "mouse" && e.button === 0) { down = { x: e.clientX, s: rail.scrollLeft }; moved = false; } });
+  addEventListener("pointermove", e => {
+    if (!down) return;
+    const dx = e.clientX - down.x;
+    if (Math.abs(dx) > 5) { moved = true; rail.classList.add("drag"); }
+    if (moved) rail.scrollLeft = down.s - dx;
+  });
+  addEventListener("pointerup", () => { down = null; setTimeout(() => rail.classList.remove("drag"), 0); });
+  rail.addEventListener("click", e => { if (moved) { e.preventDefault(); moved = false; } }, true);
+  tiles.forEach(t => t.addEventListener("focus", () => t.scrollIntoView({ inline: "nearest", block: "nearest", behavior: "smooth" })));
+
+  // Filter
+  q.addEventListener("input", () => {
+    const v = q.value.trim().toLowerCase();
+    tiles.forEach(t => t.hidden = v && !t.dataset.search.includes(v));
+    rail.scrollLeft = 0; progress();
+  });
+
+  // Enter: open first match, else Google
+  q.addEventListener("keydown", e => {
+    if (e.key !== "Enter") return;
+    const v = q.value.trim();
+    if (!v) return;
+    const first = tiles.find(t => !t.hidden);
+    location.href = first ? first.href : "https://www.google.com/search?q=" + encodeURIComponent(v);
+  });
+
+  // Shortcuts
+  document.addEventListener("keydown", e => {
+    if (document.activeElement === q || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.key === "/") { e.preventDefault(); q.focus(); }
+    else if (/^[1-9]$/.test(e.key) && tiles[+e.key - 1]) location.href = tiles[+e.key - 1].href;
+  });
+
+  progress(); q.focus();
+</script>
+</body>
+</html>
