@@ -136,7 +136,7 @@
     ["verify.resortifysolutions.com", "t"],
     ["wiki.kidaliautomates.com", ""],
     ["ui.kidaliautomates.com", ""],
-    ["code.kidaliautomates.com", "w"],
+    ["hub-auth.resortifysolutions.com/login", "w"],
     ["media.kidaliautomates.com", "w"],
     ["cpanel.kidaliautomates.com", "t"],
     ["av-auth.resortifysolutions.com", ""],
@@ -145,6 +145,8 @@
     ["storage.kidaliautomates.com", ""],
     ["v.kidaliautomates.com", ""],
     ["wg.kidaliautomates.com", ""],
+    ["pb.resortifysolutions.com", ""],
+    ["resorts.resortifysolutions.com", ""],
     ["resortifysolutions.com", ""],
     ["kidaliautomates.com", ""],
   ];
@@ -158,17 +160,42 @@
   const q = document.getElementById("q");
 
   APPS.forEach(([host, size], i) => {
-    const root = Object.keys(PALETTE).find(r => host === r || host.endsWith("." + r));
+    // Parse hostname & path for URL construction and palette matching
+    let hostname = host, path = "";
+    try {
+      if (host.includes("/")) {
+        const u = new URL(host.startsWith("http") ? host : "https://" + host);
+        hostname = u.hostname;
+        path = u.pathname + u.search;
+      }
+    } catch(e) { /* fallback: treat as plain host */ }
+
+    const root = Object.keys(PALETTE).find(r => hostname === r || hostname.endsWith("." + r));
     const pal = PALETTE[root];
     const [bg, fg] = pal[(used[root] = (used[root] ?? -1) + 1) % pal.length];
-    const name = host === root ? root.split(".")[0].replace(/(solutions|automates)$/, "") : host.split(".")[0];
+
+    // Display name: use subdomain (or root) without suffix, strip path
+    let name;
+    if (hostname === root) {
+      name = root.split(".")[0].replace(/(solutions|automates)$/, "");
+    } else {
+      name = hostname.split(".")[0];
+    }
+    // For the auth login link, show a clearer label
+    if (hostname === "hub-auth.resortifysolutions.com") {
+      name = "hub-auth";
+    }
+
     const el = document.createElement("a");
     el.className = "tile " + size;
-    el.href = "https://" + host; el.title = host; el.draggable = false;
-    el.style.setProperty("--c", bg); el.style.setProperty("--t", fg);
-    el.dataset.search = host.toLowerCase();
+    el.href = "https://" + hostname + path;
+    el.title = hostname + path;
+    el.draggable = false;
+    el.style.setProperty("--c", bg);
+    el.style.setProperty("--t", fg);
+    el.dataset.search = (hostname + path).toLowerCase();
     el.innerHTML = (i < 9 ? `<span class="key">${i + 1}</span>` : "") +
-      `<span class="name">${name}</span><span class="host">${host}</span>`;
+      `<span class="name">${name}</span><span class="host">${hostname + path}</span>`;
     rail.appendChild(el);
   });
   const tiles = [...rail.querySelectorAll(".tile")];
